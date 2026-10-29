@@ -7,42 +7,60 @@ import CampoTexto from '../components/CampoTexto';
 import Boton from '../components/Boton';
 import Mensaje from '../components/Mensaje';
 
-export default function LoginScreen() {
+const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const LONGITUD_MINIMA_CLAVE = 6;
+
+interface Props {
+    onIrRegistro?: () => void;
+}
+
+export default function LoginScreen({ onIrRegistro }: Props) {
     const [correo, setCorreo] = useState('');
     const [contrasena, setContrasena] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [enviando, setEnviando] = useState(false);
-    
+
     const { login, errorInicial } = useAuth();
     const refContrasena = useRef<TextInput>(null);
-    const logueando = useRef(false); // Guarda síncrona contra doble Enter
+    const logueando = useRef(false);
 
     async function handleLogin() {
         if (logueando.current) return;
-        
-        if (!correo.trim() || !contrasena) {
-            setError('Escribe tu correo y tu contraseña.');
+
+        const correoLimpio = correo.trim();
+
+        if (!correoLimpio || !contrasena) {
+            setError('Todos los campos son obligatorios.');
             return;
         }
-        
+
+        if (!REGEX_CORREO.test(correoLimpio)) {
+            setError('Ingresa un formato de correo electrónico válido (ejemplo@dominio.com).');
+            return;
+        }
+
+        if (contrasena.length < LONGITUD_MINIMA_CLAVE) {
+            setError(`La contraseña debe tener al menos ${LONGITUD_MINIMA_CLAVE} caracteres.`);
+            return;
+        }
+
         logueando.current = true;
         setError(null);
         setEnviando(true);
-        
-        const mensaje = await login(correo, contrasena);
-        
+
+        const mensaje = await login(correoLimpio, contrasena);
+
         if (mensaje) {
             setError(mensaje);
             setEnviando(false);
             logueando.current = false;
         }
-        // Si es exitoso, desmonta.
     }
 
     return (
         <SafeAreaView style={styles.fondo}>
-            <KeyboardAvoidingView 
-                style={{ flex: 1 }} 
+            <KeyboardAvoidingView
+                style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
                 <ScrollView contentContainerStyle={styles.contenido} keyboardShouldPersistTaps="handled">
@@ -50,12 +68,12 @@ export default function LoginScreen() {
                     <Text style={styles.lema}>La ropa también es protesta.</Text>
 
                     <View style={styles.formulario}>
-                        <Text style={styles.invitacion}>Acceso de miembros</Text>
+                        <Text style={styles.invitacion}>Iniciar sesión</Text>
                         {errorInicial ? <Mensaje titulo="Atención" detalle={errorInicial} error /> : null}
-                        {error ? <Mensaje titulo="No pudimos entrar" detalle={error} error /> : null}
-                        
+                        {error ? <Mensaje titulo="Validación de acceso" detalle={error} error /> : null}
+
                         <CampoTexto
-                            placeholder="Correo"
+                            placeholder="Correo electrónico"
                             value={correo}
                             onChangeText={setCorreo}
                             keyboardType="email-address"
@@ -68,7 +86,7 @@ export default function LoginScreen() {
                         />
                         <CampoTexto
                             ref={refContrasena}
-                            placeholder="Contraseña"
+                            placeholder="Contraseña (mín. 6 caracteres)"
                             value={contrasena}
                             onChangeText={setContrasena}
                             secureTextEntry
@@ -79,6 +97,16 @@ export default function LoginScreen() {
                             onSubmitEditing={handleLogin}
                         />
                         <Boton titulo="Entrar" onPress={handleLogin} cargando={enviando} />
+
+                        {onIrRegistro ? (
+                            <View style={styles.bloqueSecundario}>
+                                <Boton
+                                    titulo="Crear cuenta nueva"
+                                    variante="secundario"
+                                    onPress={onIrRegistro}
+                                />
+                            </View>
+                        ) : null}
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -93,4 +121,5 @@ const styles = StyleSheet.create({
     lema: { ...texto.cuerpo, marginTop: espacio.s, marginBottom: espacio.xl },
     formulario: {},
     invitacion: { ...texto.subtitulo, marginBottom: espacio.m },
+    bloqueSecundario: { marginTop: espacio.m },
 });

@@ -1,32 +1,45 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colores, borde, espacio, texto } from '../theme';
 import type { Prenda } from '../types/database';
 
 interface Props {
     prenda: Prenda;
+    esAdmin: boolean;
+    cantidadEnCarrito: number;
+    onAgregar: (prenda: Prenda) => void;
+    onEditar: (prenda: Prenda) => void;
+    onEliminar: (prenda: Prenda) => void;
 }
 
-export default function TarjetaPrenda({ prenda }: Props) {
+export default function TarjetaPrenda({
+    prenda,
+    esAdmin,
+    cantidadEnCarrito,
+    onAgregar,
+    onEditar,
+    onEliminar,
+}: Props) {
     const agotado = prenda.stock === 0;
+    const limiteAlcanzado = cantidadEnCarrito >= prenda.stock;
 
     return (
-        <TouchableOpacity 
-            style={[styles.tarjeta, agotado && styles.tarjetaAgotada]} 
-            activeOpacity={0.8}
-            disabled={agotado}
-        >
-            {/* Espacio para la imagen que viene de Que Ropero */}
+        <View style={[styles.tarjeta, agotado && styles.tarjetaAgotada]}>
             <View style={styles.contenedorImagen}>
-                {/* Por ahora un placeholder visual, luego conectaremos Supabase Storage */}
                 <View style={styles.imagenPlaceholder}>
-                    <Text style={styles.textoImagen}>FOTO</Text>
+                    <Text style={styles.textoImagen}>S/N FOTO</Text>
+                    <Text style={styles.stockTexto}>DISPONIBLES: {prenda.stock}</Text>
                 </View>
-                {agotado && (
+
+                {agotado ? (
                     <View style={styles.badgeAgotado}>
                         <Text style={styles.textoBadge}>AGOTADO</Text>
                     </View>
-                )}
+                ) : cantidadEnCarrito > 0 ? (
+                    <View style={styles.badgeEnCarrito}>
+                        <Text style={styles.textoBadgeCarrito}>EN CARRITO: {cantidadEnCarrito}</Text>
+                    </View>
+                ) : null}
             </View>
 
             <View style={styles.info}>
@@ -34,20 +47,49 @@ export default function TarjetaPrenda({ prenda }: Props) {
                 <Text style={styles.descripcion} numberOfLines={2}>
                     {prenda.descripcion ?? 'Sin descripción'}
                 </Text>
-                
-                <View style={styles.filaInferior}>
-                    <Text style={styles.precio}>
-                        ${prenda.precio.toLocaleString('es-CO')}
+
+                <Text style={styles.precio}>
+                    ${Number(prenda.precio).toLocaleString('es-CO')}
+                </Text>
+
+                {/* Acción disponible para comprar */}
+                <TouchableOpacity
+                    style={[
+                        styles.botonAgregar,
+                        (agotado || limiteAlcanzado) && styles.botonAgregarDeshabilitado,
+                    ]}
+                    onPress={() => onAgregar(prenda)}
+                    disabled={agotado || limiteAlcanzado}
+                >
+                    <Text style={styles.textoBotonAgregar}>
+                        {agotado
+                            ? 'SIN STOCK'
+                            : limiteAlcanzado
+                            ? 'MÁX. EN CARRITO'
+                            : '+ AGREGAR AL CARRITO'}
                     </Text>
-                    {/* Botón de acción rápida típico de e-commerce web */}
-                    {!agotado && (
-                        <TouchableOpacity style={styles.botonMini}>
-                            <Text style={styles.textoBotonMini}>+</Text>
+                </TouchableOpacity>
+
+                {/* Controles exclusivos del rol ADMIN */}
+                {esAdmin ? (
+                    <View style={styles.accionesAdmin}>
+                        <TouchableOpacity
+                            style={styles.botonEditar}
+                            onPress={() => onEditar(prenda)}
+                        >
+                            <Text style={styles.textoBotonEditar}>EDITAR</Text>
                         </TouchableOpacity>
-                    )}
-                </View>
+
+                        <TouchableOpacity
+                            style={styles.botonBorrar}
+                            onPress={() => onEliminar(prenda)}
+                        >
+                            <Text style={styles.textoBotonBorrar}>X</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
             </View>
-        </TouchableOpacity>
+        </View>
     );
 }
 
@@ -59,14 +101,13 @@ const styles = StyleSheet.create({
         borderColor: colores.hueso,
         marginBottom: espacio.m,
         marginHorizontal: espacio.xs,
-        overflow: 'hidden',
     },
     tarjetaAgotada: {
-        opacity: 0.6,
+        opacity: 0.75,
         borderColor: colores.gris,
     },
     contenedorImagen: {
-        height: 180,
+        height: 120,
         backgroundColor: '#2A2A2A',
         position: 'relative',
     },
@@ -80,55 +121,101 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         letterSpacing: 2,
     },
+    stockTexto: {
+        color: colores.hueso,
+        fontSize: 11,
+        fontWeight: '700',
+        marginTop: espacio.xs,
+    },
     badgeAgotado: {
         position: 'absolute',
-        top: 10,
-        right: 10,
+        top: 8,
+        right: 8,
         backgroundColor: colores.rojoFondo,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
     },
     textoBadge: {
         color: colores.hueso,
         fontSize: 10,
         fontWeight: '900',
     },
+    badgeEnCarrito: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: colores.hueso,
+        paddingHorizontal: 6,
+        paddingVertical: 3,
+    },
+    textoBadgeCarrito: {
+        color: colores.asfalto,
+        fontSize: 10,
+        fontWeight: '900',
+    },
     info: {
-        padding: espacio.m,
+        padding: espacio.s,
     },
     nombre: {
         ...texto.subtitulo,
-        fontSize: 16,
+        fontSize: 15,
         marginBottom: espacio.xs,
     },
     descripcion: {
         ...texto.cuerpo,
         color: colores.gris,
-        fontSize: 13,
-        marginBottom: espacio.m,
-        minHeight: 36, // Mantiene la alineación de la grilla
-    },
-    filaInferior: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        fontSize: 12,
+        marginBottom: espacio.s,
+        minHeight: 32,
     },
     precio: {
         color: colores.rojoTexto,
-        fontSize: 18,
+        fontSize: 16,
+        fontWeight: '900',
+        marginBottom: espacio.s,
+    },
+    botonAgregar: {
+        backgroundColor: colores.rojoFondo,
+        paddingVertical: 8,
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: colores.hueso,
+    },
+    botonAgregarDeshabilitado: {
+        backgroundColor: colores.asfalto,
+        borderColor: colores.gris,
+    },
+    textoBotonAgregar: {
+        color: colores.hueso,
+        fontSize: 11,
         fontWeight: '900',
     },
-    botonMini: {
+    accionesAdmin: {
+        flexDirection: 'row',
+        gap: espacio.xs,
+        marginTop: espacio.s,
+    },
+    botonEditar: {
+        flex: 1,
         backgroundColor: colores.hueso,
-        width: 32,
-        height: 32,
+        paddingVertical: 6,
+        alignItems: 'center',
+    },
+    textoBotonEditar: {
+        color: colores.asfalto,
+        fontSize: 11,
+        fontWeight: '900',
+    },
+    botonBorrar: {
+        backgroundColor: colores.rojoFondo,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    textoBotonMini: {
-        color: colores.asfalto,
-        fontSize: 20,
-        fontWeight: 'bold',
-        lineHeight: 22,
-    }
+    textoBotonBorrar: {
+        color: colores.hueso,
+        fontSize: 11,
+        fontWeight: '900',
+    },
 });

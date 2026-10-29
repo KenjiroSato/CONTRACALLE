@@ -1,82 +1,58 @@
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/supabaseClient';
 import { colores, borde, espacio, texto } from '../theme';
-import type { Perfil } from '../types/database';
 import Boton from '../components/Boton';
 import Mensaje from '../components/Mensaje';
 
 export default function PerfilScreen() {
-    const { session, logout } = useAuth();
-    const [perfil, setPerfil] = useState<Perfil | null>(null);
-    const [cargando, setCargando] = useState(true);
+    const { session, perfil, esAdmin, logout } = useAuth();
+    const [cerrando, setCerrando] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [saliendo, setSaliendo] = useState(false);
-
-    useEffect(() => {
-        if (!session?.user.id) return;
-
-        let activo = true;
-        void (async () => {
-            setCargando(true);
-            try {
-                const { data, error: errorConsulta } = await supabase
-                    .from('perfiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .maybeSingle();
-                
-                if (!activo) return;
-                
-                if (errorConsulta) {
-                    setError('Error de red al cargar el perfil.');
-                    return;
-                }
-                setError(null);
-                setPerfil(data as Perfil | null);
-            } catch {
-                if (activo) setError('No se pudo conectar para cargar tu perfil.');
-            } finally {
-                if (activo) setCargando(false);
-            }
-        })();
-
-        return () => { activo = false; };
-    }, [session?.user.id]); // Solo se ejecuta si cambia el ID, no el token entero.
 
     async function handleLogout() {
-        setSaliendo(true);
-        const mensaje = await logout();
-        if (mensaje) {
-            setError(mensaje);
-            setSaliendo(false);
+        setCerrando(true);
+        setError(null);
+        const msg = await logout();
+        if (msg) {
+            setError(msg);
+            setCerrando(false);
         }
     }
 
     return (
         <SafeAreaView style={styles.fondo} edges={['top']}>
-            <View style={styles.contenido}>
-                <Text style={texto.titulo}>Perfil</Text>
-                {error ? <Mensaje titulo="Algo falló" detalle={error} error /> : null}
+            <View style={styles.contenedor}>
+                <Text style={styles.titulo}>MI PERFIL</Text>
 
-                {cargando ? (
-                    <View style={{ padding: espacio.l, alignItems: 'center' }}>
-                        <ActivityIndicator size="small" color={colores.rojo} />
-                    </View>
-                ) : !perfil && !error ? (
-                    <Mensaje titulo="Perfil inexistente" detalle="Tu usuario no tiene un perfil asociado en la base de datos." error />
-                ) : perfil ? (
-                    <View style={styles.caja}>
-                        <Text style={texto.nota}>Correo</Text>
-                        <Text style={styles.valor}>{session?.user.email ?? '—'}</Text>
-                        <Text style={[texto.nota, { marginTop: espacio.m }]}>Rol</Text>
-                        <Text style={styles.valor}>{perfil.rol}</Text>
-                    </View>
-                ) : null}
+                {error ? <Mensaje titulo="Error" detalle={error} error /> : null}
 
-                <Boton titulo="Cerrar sesión" onPress={handleLogout} variante="secundario" cargando={saliendo} />
+                <View style={styles.tarjeta}>
+                    <Text style={texto.nota}>CORREO ELECTRÓNICO</Text>
+                    <Text style={styles.valor}>{perfil?.email ?? session?.user.email ?? 'Sin correo'}</Text>
+
+                    <Text style={[texto.nota, { marginTop: espacio.m }]}>ROL ASIGNADO</Text>
+                    <View style={[styles.badgeRol, esAdmin && styles.badgeAdmin]}>
+                        <Text style={[styles.textoRol, esAdmin && styles.textoRolAdmin]}>
+                            {esAdmin ? 'ADMINISTRADOR' : 'CLIENTE'}
+                        </Text>
+                    </View>
+
+                    <Text style={[texto.nota, { marginTop: espacio.m }]}>PERMISOS ACTIVOS</Text>
+                    <Text style={styles.permisos}>
+                        {esAdmin
+                            ? 'Gestión total del catálogo (Crear, Editar, Eliminar prendas) y control global de estados de pedidos.'
+                            : 'Exploración de catálogo, uso del carrito de compras y seguimiento/cancelación de pedidos propios.'}
+                    </Text>
+                </View>
+
+                <Boton
+                    titulo="Cerrar Sesión"
+                    variante="secundario"
+                    onPress={handleLogout}
+                    cargando={cerrando}
+                />
             </View>
         </SafeAreaView>
     );
@@ -84,12 +60,38 @@ export default function PerfilScreen() {
 
 const styles = StyleSheet.create({
     fondo: { flex: 1, backgroundColor: colores.asfalto },
-    contenido: { flex: 1, padding: espacio.l },
-    caja: {
+    contenedor: { flex: 1, padding: espacio.m },
+    titulo: { ...texto.titulo, fontSize: 26, marginBottom: espacio.l },
+    tarjeta: {
+        backgroundColor: colores.asfaltoClaro,
         borderWidth: borde.grosor,
         borderColor: colores.hueso,
-        padding: espacio.m,
-        marginVertical: espacio.l,
+        padding: espacio.l,
+        marginBottom: espacio.l,
     },
-    valor: { ...texto.subtitulo, marginTop: espacio.xs },
+    valor: { ...texto.subtitulo, fontSize: 16, marginTop: espacio.xs },
+    badgeRol: {
+        alignSelf: 'flex-start',
+        backgroundColor: colores.hueso,
+        paddingHorizontal: espacio.m,
+        paddingVertical: espacio.xs,
+        marginTop: espacio.xs,
+    },
+    badgeAdmin: {
+        backgroundColor: colores.rojoFondo,
+    },
+    textoRol: {
+        color: colores.asfalto,
+        fontWeight: '900',
+        fontSize: 13,
+    },
+    textoRolAdmin: {
+        color: colores.hueso,
+    },
+    permisos: {
+        ...texto.cuerpo,
+        color: colores.gris,
+        marginTop: espacio.xs,
+        lineHeight: 20,
+    },
 });

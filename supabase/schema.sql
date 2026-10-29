@@ -73,3 +73,50 @@ END; $$;
 
 CREATE TRIGGER al_crear_usuario AFTER INSERT ON auth.users
 FOR EACH ROW EXECUTE FUNCTION public.crear_perfil();
+
+BEGIN;
+
+-- 1. Otorgar permisos de CRUD al rol autenticado (manteniendo 'anon' bloqueado)
+GRANT SELECT, INSERT, UPDATE, DELETE ON prendas, pedidos, detalles_pedido TO authenticated;
+GRANT SELECT, UPDATE ON perfiles, movimientos TO authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- 2. Políticas RLS para CRUD en Prendas (Solo usuarios autenticados y sobre causas activas)
+DROP POLICY IF EXISTS "insertar prendas" ON prendas;
+DROP POLICY IF EXISTS "actualizar prendas" ON prendas;
+DROP POLICY IF EXISTS "eliminar prendas" ON prendas;
+
+CREATE POLICY "insertar prendas" ON prendas 
+FOR INSERT TO authenticated 
+WITH CHECK (
+    EXISTS (SELECT 1 FROM movimientos m WHERE m.id = prendas.id_movimiento AND m.activa = true)
+);
+
+CREATE POLICY "actualizar prendas" ON prendas 
+FOR UPDATE TO authenticated 
+USING (true)
+WITH CHECK (precio >= 0 AND stock >= 0 AND trim(nombre) <> '');
+
+CREATE POLICY "eliminar prendas" ON prendas 
+FOR DELETE TO authenticated 
+USING (true);
+
+-- 3. Políticas RLS para CRUD en Pedidos (Aislados estrictamente por usuario)
+DROP POLICY IF EXISTS "crear pedidos propios" ON pedidos;
+DROP POLICY IF EXISTS "actualizar pedidos propios" ON pedidos;
+DROP POLICY IF EXISTS "eliminar pedidos propios" ON pedidos;
+
+CREATE POLICY "crear pedidos propios" ON pedidos 
+FOR INSERT TO authenticated 
+WITH CHECK (id_perfil = (select auth.uid()));
+
+CREATE POLICY "actualizar pedidos propios" ON pedidos 
+FOR UPDATE TO authenticated 
+USING (id_perfil = (select auth.uid()))
+WITH CHECK (id_perfil = (select auth.uid()));
+
+CREATE POLICY "eliminar pedidos propios" ON pedidos 
+FOR DELETE TO authenticated 
+USING (id_perfil = (select auth.uid()));
+
+COMMIT;
